@@ -23,15 +23,14 @@
 #define kSEFilterControlValueLabelHeight                20.f
 
 #define kSEFilterControlControlRightMargin              10
-#define kSEFilterControlControlHeight                   26.f
 
-#define kSEFilterControlKnobTop                         2
-#define kSEFilterControlKnobLeft                        1
-#define kSEFilterControlTrackTop                        9
-#define kSEFilterControlTrackLeft                       13
+#define kSEFilterControlKnobTop                         5
+#define kSEFilterControlKnobLeft                        4
+#define kSEFilterControlTrackTop                        13
+#define kSEFilterControlTrackLeft                       16
 #define kSEFilterControlTrackHeight                     6
 #define kSEFilterControlTrackCornerRadius               8
-#define kSEFilterControlEllipseTop                      6
+#define kSEFilterControlEllipseTop                      11
 #define kSEFilterControlEllipseSize                     12
 
 #define kSEFilterControlDefaultAnimationDuration        0.3f
@@ -129,6 +128,17 @@
     self.trackView.image = trackBackgroundImage;
 }
 
+- (void)setEllipseTrackBackgroundImage:(UIImage *)ellipseTrackBackgroundImage
+{
+    _ellipseTrackBackgroundImage = [ellipseTrackBackgroundImage copy];
+    
+    for (NSUInteger i = 0; i < self.titles.count; i++)
+    {
+        UIImageView *imageView = (UIImageView *)[self.controlView viewWithTag:i + kSEFilterControlEllipseImageViewStartingTag];
+        imageView.image = ellipseTrackBackgroundImage;
+    }
+}
+
 - (void)setBackgroundImage:(UIImage *)backgroundImage
 {
     self.controlView.image = backgroundImage;
@@ -164,7 +174,7 @@
 {
     if (! _controlView)
     {
-        _controlView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.frame.size.width - kSEFilterControlControlRightMargin - kSEFilterControlValueLabelWidth, kSEFilterControlControlHeight)];
+        _controlView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.frame.size.width - kSEFilterControlControlRightMargin - kSEFilterControlValueLabelWidth, self.frame.size.height)];
         _controlView.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleWidth;
         _controlView.autoresizesSubviews = YES;
         _controlView.image = self.backgroundImage;
@@ -237,15 +247,21 @@
     
     _titles = titles;
     
-    for (NSUInteger i = 0; i < self.titles.count; i++)
+    for (NSUInteger i = 0; i < _titles.count; i++)
     {
         CGFloat x = [self xForIndex:i withSideMargin:kSEFilterControlTrackLeft];
         
         // Draw Selection Circles
         
-        UIImageView *ellipseImageView = [[UIImageView alloc] initWithFrame:CGRectMake(x, kSEFilterControlEllipseTop, kSEFilterControlEllipseSize, kSEFilterControlEllipseSize)];
+        UIImageView *ellipseImageView = [[UIImageView alloc] initWithFrame:CGRectMake(x - (kSEFilterControlEllipseSize / 2), kSEFilterControlEllipseTop, kSEFilterControlEllipseSize, kSEFilterControlEllipseSize)];
         ellipseImageView.image = self.ellipseTrackBackgroundImage;
+        ellipseImageView.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+        ellipseImageView.tag = i + kSEFilterControlEllipseImageViewStartingTag;
+        
+        [self.controlView addSubview:ellipseImageView];
     }
+    
+    [self.controlView bringSubviewToFront:self.knob];
 }
 
 #pragma mark - Initialization
@@ -254,7 +270,7 @@
 {
     [self.knob removeTarget:self action:@selector(didTouchDownForKnob:withEvent:) forControlEvents:UIControlEventTouchDown];
     [self.knob removeTarget:self action:@selector(TouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
-    [self.knob removeTarget:self action:@selector(TouchMove:withEvent: ) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
+    [self.knob removeTarget:self action:@selector(TouchMove:withEvent:) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
 }
 
 - (id)initWithFrame:(CGRect)frame andTitles:(NSArray *)titles
@@ -351,7 +367,7 @@
 
 - (CGFloat)xForIndex:(NSUInteger)index withSideMargin:(CGFloat)sideMargin
 {
-    return (index / (float)(self.titles.count - 1)) * (self.controlView.frame.size.width - (2 * sideMargin)) + sideMargin;
+    return floor((index / (float)(self.titles.count - 1)) * (self.controlView.frame.size.width - (2 * sideMargin))) + sideMargin;
 }
 
 - (CGPoint)fixFinalPoint:(CGPoint)point
@@ -359,9 +375,9 @@
     if (point.x < (self.knob.frame.size.width / 2.f))
     {
         point.x = (self.knob.frame.size.width / 2.f);
-    } else if (point.x + (self.knob.frame.size.width / 2.f) > self.frame.size.width)
+    } else if (point.x + (self.knob.frame.size.width / 2.f) > (self.controlView.frame.size.width - kSEFilterControlTrackLeft))
     {
-        point.x = self.frame.size.width - (self.knob.frame.size.width / 2.f);
+        point.x = self.controlView.frame.size.width - (self.knob.frame.size.width / 2.f) - kSEFilterControlTrackLeft;
     }
     
     return point;
