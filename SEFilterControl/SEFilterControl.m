@@ -1,8 +1,8 @@
 //
 //  SEFilterControl.m
-//  SEFilterControl_Test
 //
 //  Created by Shady A. Elyaski on 6/13/12.
+//  Updated by Artur Grigor on 04/15/2013.
 //  Copyright (c) 2012 mash, ltd. All rights reserved.
 //
 //    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -12,290 +12,366 @@
 //    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import "SEFilterControl.h"
+#import "SEFilterKnob.h"
 
-#define LEFT_OFFSET 25
-#define RIGHT_OFFSET 25
 #define TITLE_SELECTED_DISTANCE 5
 #define TITLE_FADE_ALPHA .5f
-#define TITLE_FONT [UIFont fontWithName:@"Optima" size:14]
-#define TITLE_SHADOW_COLOR [UIColor lightGrayColor]
-#define TITLE_COLOR [UIColor blackColor]
 
-@interface SEFilterControl (){
-    SEFilterKnob *handler;
+#define kSEFilterControlEllipseImageViewStartingTag     50
+
+#define kSEFilterControlValueLabelWidth                 40.f
+#define kSEFilterControlValueLabelHeight                20.f
+
+#define kSEFilterControlControlRightMargin              10
+#define kSEFilterControlControlHeight                   26.f
+
+#define kSEFilterControlKnobTop                         2
+#define kSEFilterControlKnobLeft                        1
+#define kSEFilterControlTrackTop                        9
+#define kSEFilterControlTrackLeft                       13
+#define kSEFilterControlTrackHeight                     6
+#define kSEFilterControlTrackCornerRadius               8
+#define kSEFilterControlEllipseTop                      6
+#define kSEFilterControlEllipseSize                     12
+
+#define kSEFilterControlDefaultAnimationDuration        0.3f
+#define kSEFilterControlDefaultAnimationDelay           0.f
+#define kSEFilterControlDefaultAnimationOptions         UIViewAnimationOptionCurveEaseOut
+
+#define kSEFilterControlDefaultValueFont                [UIFont fontWithName:@"Helvetica" size:14]
+#define kSEFilterControlDefaultValueTextColor           [UIColor blackColor]
+
+@interface SEFilterControl ()
+{
     CGPoint diffPoint;
-    NSArray *titlesArr;
-    float oneSlotSize;
 }
+
+@property (nonatomic) CGFloat oneSlotSize;
+
+//
+//  Controls
+//
+
+@property (nonatomic, strong) UIImageView *controlView;
+@property (nonatomic, strong) UIImageView *trackView;
+@property (nonatomic, strong) UILabel *valueLabel;
+@property (nonatomic, strong) SEFilterKnob *knob;
+
+//
+//  Animations
+//
+
+- (void)animateKnobToIndex:(NSUInteger)index;
+
+//
+//  Actions
+//
+
+- (void)didTap:(UITapGestureRecognizer *)tapGestureRecognizer;
+
+- (void)didTouchDownForKnob:(id)sender withEvent:(UIEvent *)event;
+- (void)didTouchUpOutsideForKnob:(id)sender;
+- (void)didTouchDragForKnob:(id)sender withEvent:(UIEvent *)event;
+
+//
+//  Calculations
+//
+
+- (CGFloat)xForIndex:(NSUInteger)index withSideMargin:(CGFloat)sideMargin;
+- (CGPoint)fixFinalPoint:(CGPoint)point;
+
+//
+//  Others
+//
+
+- (NSUInteger)getSelectedTitleInPoint:(CGPoint)point;
 
 @end
 
 @implementation SEFilterControl
-@synthesize SelectedIndex, progressColor;
 
--(CGPoint)getCenterPointForIndex:(int) i{
-    return CGPointMake((i/(float)(titlesArr.count-1)) * (self.frame.size.width-RIGHT_OFFSET-LEFT_OFFSET) + LEFT_OFFSET, i==0?self.frame.size.height-55-TITLE_SELECTED_DISTANCE:self.frame.size.height-55);
+#pragma mark - Properties
+
+@synthesize
+    valueFont = _valueFont,
+    valueTextColor = _valueTextColor,
+
+    trackBackgroundImage = _trackBackgroundImage,
+    ellipseTrackBackgroundImage = _ellipseTrackBackgroundImage,
+    backgroundImage = _backgroundImage,
+    knobBackgroundImage = _knobBackgroundImage;
+
+@synthesize
+    selectedIndex = _selectedIndex,
+    controlView = _controlView,
+    trackView = _trackView,
+    valueLabel = _valueLabel,
+    knob = _knob;
+
+@synthesize
+    titles = _titles;
+
+@synthesize
+    oneSlotSize = _oneSlotSize;
+
+- (void)setValueFont:(UIFont *)valueFont
+{
+    self.valueLabel.font = valueFont;
 }
 
--(CGPoint)fixFinalPoint:(CGPoint)pnt{
-    if (pnt.x < LEFT_OFFSET-(handler.frame.size.width/2.f)) {
-        pnt.x = LEFT_OFFSET-(handler.frame.size.width/2.f);
-    }else if (pnt.x+(handler.frame.size.width/2.f) > self.frame.size.width-RIGHT_OFFSET){
-        pnt.x = self.frame.size.width-RIGHT_OFFSET- (handler.frame.size.width/2.f);
-    }
-    return pnt;
+- (void)setValueTextColor:(UIColor *)valueTextColor
+{
+    self.valueLabel.textColor = valueTextColor;
 }
 
--(id) initWithFrame:(CGRect) frame Titles:(NSArray *) titles{
-    if (self = [super initWithFrame:CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, 70)]) {
-        [self setBackgroundColor:[UIColor clearColor]];
-        titlesArr = [[NSArray alloc] initWithArray:titles];
-        
-        [self setProgressColor:[UIColor colorWithRed:103/255.f green:173/255.f blue:202/255.f alpha:1]];
-        
-        UITapGestureRecognizer *gest = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(ItemSelected:)];
-        [self addGestureRecognizer:gest];
-        [gest release];
-        
-        handler = [[SEFilterKnob buttonWithType:UIButtonTypeCustom] retain];
-        [handler setFrame:CGRectMake(LEFT_OFFSET, 10, 35, 55)];
-        [handler setAdjustsImageWhenHighlighted:NO];
-        [handler setCenter:CGPointMake(handler.center.x-(handler.frame.size.width/2.f), self.frame.size.height-19.5f)];
-        [handler addTarget:self action:@selector(TouchDown:withEvent:) forControlEvents:UIControlEventTouchDown];
-        [handler addTarget:self action:@selector(TouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
-        [handler addTarget:self action:@selector(TouchMove:withEvent:) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
-        [self addSubview:handler];
-        
-        int i;
-        NSString *title;
-        UILabel *lbl;
-        
-        oneSlotSize = 1.f*(self.frame.size.width-LEFT_OFFSET-RIGHT_OFFSET-1)/(titlesArr.count-1);
-        for (i = 0; i < titlesArr.count; i++) {
-            title = [titlesArr objectAtIndex:i];
-            lbl = [[UILabel alloc]initWithFrame:CGRectMake(0, 0, oneSlotSize, 25)];
-            [lbl setText:title];
-            [lbl setFont:TITLE_FONT];
-            [lbl setShadowColor:TITLE_SHADOW_COLOR];
-            [lbl setTextColor:TITLE_COLOR];
-            [lbl setLineBreakMode:UILineBreakModeMiddleTruncation];
-            [lbl setAdjustsFontSizeToFitWidth:YES];
-            [lbl setMinimumFontSize:8];
-            [lbl setTextAlignment:UITextAlignmentCenter];
-            [lbl setShadowOffset:CGSizeMake(0, 1)];
-            [lbl setBackgroundColor:[UIColor clearColor]];
-            [lbl setTag:i+50];
-            
-            if (i) {
-                [lbl setAlpha:TITLE_FADE_ALPHA];
-            }
-            
-            [lbl setCenter:[self getCenterPointForIndex:i]];
-            
-            
-            [self addSubview:lbl];
-            [lbl release];
-        }
+- (void)setTrackBackgroundImage:(UIImage *)trackBackgroundImage
+{
+    self.trackView.image = trackBackgroundImage;
+}
+
+- (void)setBackgroundImage:(UIImage *)backgroundImage
+{
+    self.controlView.image = backgroundImage;
+}
+
+- (void)setKnobBackgroundImage:(UIImage *)knobBackgroundImage
+{
+    [self.knob setBackgroundImage:knobBackgroundImage forState:UIControlStateNormal];
+}
+
+- (void)setSelectedIndex:(NSUInteger)selectedIndex
+{
+    _selectedIndex = selectedIndex;
+    
+    self.valueLabel.text = self.titles[_selectedIndex];
+    
+    [self sendActionsForControlEvents:UIControlEventValueChanged];
+}
+
+- (void)setSelectedIndex:(NSUInteger)selectedIndex animated:(BOOL)animated
+{
+    if (selectedIndex >= self.titles.count) selectedIndex = self.titles.count - 1;
+    
+    if (animated)
+    {
+        [self animateKnobToIndex:selectedIndex];
     }
+    
+    self.selectedIndex = selectedIndex;
+}
+
+- (UIImageView *)controlView
+{
+    if (! _controlView)
+    {
+        _controlView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.frame.size.width - kSEFilterControlControlRightMargin - kSEFilterControlValueLabelWidth, kSEFilterControlControlHeight)];
+        _controlView.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleWidth;
+        _controlView.autoresizesSubviews = YES;
+        _controlView.image = self.backgroundImage;
+        _controlView.userInteractionEnabled = YES;
+        
+        [_controlView addSubview:self.trackView];
+        [_controlView addSubview:self.knob];
+        
+        // Gestures
+        UITapGestureRecognizer *tapGestureRecognizer = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(didTap:)];
+        [self addGestureRecognizer:tapGestureRecognizer];
+    }
+    
+    return _controlView;
+}
+
+- (UIImageView *)trackView
+{
+    if (! _trackView)
+    {
+        _trackView = [[UIImageView alloc] initWithFrame:CGRectMake(kSEFilterControlTrackLeft, kSEFilterControlTrackTop, self.controlView.frame.size.width - (2 * kSEFilterControlTrackLeft), kSEFilterControlTrackHeight)];
+        _trackView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
+        _trackView.image = self.trackBackgroundImage;
+    }
+    
+    return _trackView;
+}
+
+- (UILabel *)valueLabel
+{
+    if (! _valueLabel)
+    {
+        _valueLabel = [[UILabel alloc] initWithFrame:CGRectMake(self.frame.size.width - kSEFilterControlValueLabelWidth, (self.frame.size.height - kSEFilterControlValueLabelHeight) / 2, kSEFilterControlValueLabelWidth, kSEFilterControlValueLabelHeight)];
+        _valueLabel.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleWidth;
+        _valueLabel.text = self.titles[self.selectedIndex];
+        _valueLabel.minimumFontSize = 8.f;
+        _valueLabel.adjustsFontSizeToFitWidth = YES;
+        _valueLabel.backgroundColor = [UIColor clearColor];
+        _valueLabel.textAlignment = UITextAlignmentCenter;
+    }
+    
+    return _valueLabel;
+}
+
+- (SEFilterKnob *)knob
+{
+    if (! _knob)
+    {
+        _knob = [SEFilterKnob buttonWithType:UIButtonTypeCustom];
+        _knob.frame = CGRectMake(kSEFilterControlKnobLeft, kSEFilterControlKnobTop, 24, 24);
+        _knob.adjustsImageWhenHighlighted = NO;
+        
+        [_knob addTarget:self action:@selector(didTouchDownForKnob:withEvent:) forControlEvents:UIControlEventTouchDown];
+        [_knob addTarget:self action:@selector(didTouchUpOutsideForKnob:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
+        [_knob addTarget:self action:@selector(didTouchDragForKnob:withEvent:) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
+    }
+    
+    return _knob;
+}
+
+- (void)setTitles:(NSArray *)titles
+{
+    // Remove old ellipses
+    
+    for (NSUInteger i = 0; i < self.titles.count; i++)
+    {
+        UIView *view = [self.controlView viewWithTag:i + kSEFilterControlEllipseImageViewStartingTag];
+        [view removeFromSuperview];
+    }
+    
+    _titles = titles;
+    
+    for (NSUInteger i = 0; i < self.titles.count; i++)
+    {
+        CGFloat x = [self xForIndex:i withSideMargin:kSEFilterControlTrackLeft];
+        
+        // Draw Selection Circles
+        
+        UIImageView *ellipseImageView = [[UIImageView alloc] initWithFrame:CGRectMake(x, kSEFilterControlEllipseTop, kSEFilterControlEllipseSize, kSEFilterControlEllipseSize)];
+        ellipseImageView.image = self.ellipseTrackBackgroundImage;
+    }
+}
+
+#pragma mark - Initialization
+
+- (void)dealloc
+{
+    [self.knob removeTarget:self action:@selector(didTouchDownForKnob:withEvent:) forControlEvents:UIControlEventTouchDown];
+    [self.knob removeTarget:self action:@selector(TouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
+    [self.knob removeTarget:self action:@selector(TouchMove:withEvent: ) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
+}
+
+- (id)initWithFrame:(CGRect)frame andTitles:(NSArray *)titles
+{
+    self = [super initWithFrame:frame];
+    if (self)
+    {
+        // Defaults
+        
+        self.valueFont = kSEFilterControlDefaultValueFont;
+        self.valueTextColor = kSEFilterControlDefaultValueTextColor;
+        
+        // Others
+        
+        self.backgroundColor = [UIColor clearColor];
+        self.autoresizesSubviews = YES;
+        self.titles = titles;
+        
+        // Controls
+        [self addSubview:self.controlView];
+        [self addSubview:self.valueLabel];
+        
+        self.selectedIndex = 0;
+    }
+    
     return self;
 }
 
--(void)drawRect:(CGRect)rect{
-    CGContextRef context = UIGraphicsGetCurrentContext();
+#pragma mark - Animations
+
+- (void)animateKnobToIndex:(NSUInteger)index
+{
+    __weak SEFilterControl *weakSelf = self;
     
-    CGColorRef shadowColor = [UIColor colorWithRed:0 green:0 
-                                              blue:0 alpha:.9f].CGColor;
+    CGFloat x = [self xForIndex:index withSideMargin:kSEFilterControlTrackLeft] - (self.knob.frame.size.width / 2.f);
     
-    
-    //Fill Main Path
-    
-    CGContextSetFillColorWithColor(context, self.progressColor.CGColor);
-    
-    CGContextFillRect(context, CGRectMake(LEFT_OFFSET, rect.size.height-35, rect.size.width-RIGHT_OFFSET-LEFT_OFFSET, 10));
-    
-    CGContextSaveGState(context);
-    
-    //Draw Black Top Shadow
-    
-    CGContextSetShadowWithColor(context, CGSizeMake(0, 1.f), 2.f, shadowColor);
-    
-    CGContextSetStrokeColorWithColor(context, [UIColor colorWithRed:0 green:0 
-                                                               blue:0 alpha:.6f].CGColor);
-    CGContextSetLineWidth(context, .5f);
-    CGContextBeginPath(context);
-    CGContextMoveToPoint(context, LEFT_OFFSET, rect.size.height-35);
-    CGContextAddLineToPoint(context, rect.size.width-RIGHT_OFFSET, rect.size.height-35);
-    CGContextStrokePath(context);
-    
-    CGContextRestoreGState(context);
-    
-    CGContextSaveGState(context);
-    
-    //Draw White Bottom Shadow
-    
-    CGContextSetStrokeColorWithColor(context, [UIColor colorWithRed:1 green:1
-                                                               blue:1 alpha:1.f].CGColor);
-    CGContextSetLineWidth(context, .4f);
-    CGContextBeginPath(context);
-    CGContextMoveToPoint(context, LEFT_OFFSET, rect.size.height-25);
-    CGContextAddLineToPoint(context, rect.size.width-RIGHT_OFFSET, rect.size.height-25);
-    CGContextStrokePath(context);
-    
-    CGContextRestoreGState(context);
-    
-    
-    CGPoint centerPoint;
-    int i;
-    for (i = 0; i < titlesArr.count; i++) {
-        centerPoint = [self getCenterPointForIndex:i];
-        
-        //Draw Selection Circles
-        
-        CGContextSetFillColorWithColor(context, self.progressColor.CGColor);
-        
-        CGContextFillEllipseInRect(context, CGRectMake(centerPoint.x-15, rect.size.height-42.5f, 25, 25));
-        
-        //Draw top Gradient
-        
-        CGFloat colors[12] =   {0, 0, 0, 1,
-                                0, 0, 0, 0,
-                                0, 0, 0, 0};
-        CGColorSpaceRef baseSpace = CGColorSpaceCreateDeviceRGB();
-        CGGradientRef gradient = CGGradientCreateWithColorComponents(baseSpace, colors, NULL, 3);
-        
-        CGContextSaveGState(context);
-        CGContextAddEllipseInRect(context, CGRectMake(centerPoint.x-15, rect.size.height-42.5f, 25, 25));
-        CGContextClip(context);
-        CGContextDrawLinearGradient (context, gradient, CGPointMake(0, 0), CGPointMake(0,rect.size.height), 0);
-        CGContextRestoreGState(context);
-        
-        //Draw White Bottom Shadow
-        
-        CGContextSetStrokeColorWithColor(context, [UIColor colorWithRed:1 green:1
-                                                                   blue:1 alpha:.4f].CGColor);
-        CGContextSetLineWidth(context, .8f);
-        CGContextAddArc(context,centerPoint.x-2.5,rect.size.height-30.5f,12.5f,24*M_PI/180,156*M_PI/180,0);
-        CGContextDrawPath(context,kCGPathStroke);
-        
-        //Draw Black Top Shadow
-        
-        CGContextSetStrokeColorWithColor(context, [UIColor colorWithRed:0 green:0
-                                                                   blue:0 alpha:.2f].CGColor);
-        
-        CGContextAddArc(context,centerPoint.x-2.5,rect.size.height-30.5f,12.f,(i==titlesArr.count-1?28:-20)*M_PI/180,(i==0?-208:-160)*M_PI/180,1);
-        CGContextSetLineWidth(context, 1.f);
-        CGContextDrawPath(context,kCGPathStroke);
-        
-    }
+    [UIView animateWithDuration:kSEFilterControlDefaultAnimationDuration delay:kSEFilterControlDefaultAnimationDelay options:kSEFilterControlDefaultAnimationOptions animations:^
+     {
+         __strong SEFilterControl *strongSelf = weakSelf;
+         
+         strongSelf.knob.frame = CGRectMake(x, strongSelf.knob.frame.origin.y, strongSelf.knob.frame.size.width, strongSelf.knob.frame.size.height);
+     } completion:nil];
 }
 
--(void) setHandlerColor:(UIColor *)color{
-    [handler setHandlerColor:color];
+#pragma mark - Actions
+
+- (void)didTap:(UITapGestureRecognizer *)tapGestureRecognizer
+{
+    NSUInteger index = [self getSelectedTitleInPoint:[tapGestureRecognizer locationInView:self]];
+    [self setSelectedIndex:index animated:YES];
+    
+    [self sendActionsForControlEvents:UIControlEventTouchUpInside];
+    [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
 
-- (void) TouchDown: (UIButton *) btn withEvent: (UIEvent *) ev{
-    CGPoint currPoint = [[[ev allTouches] anyObject] locationInView:self];
-    diffPoint = CGPointMake(currPoint.x - btn.frame.origin.x, currPoint.y - btn.frame.origin.y);
+- (void)didTouchDownForKnob:(id)sender withEvent:(UIEvent *)event
+{
+    SEFilterKnob *knob = (SEFilterKnob *)sender;
+    
+    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self];
+    diffPoint = CGPointMake(currentPoint.x - knob.frame.origin.x, currentPoint.y - knob.frame.origin.y);
+    
     [self sendActionsForControlEvents:UIControlEventTouchDown];
 }
 
--(void) setTitlesColor:(UIColor *)color{
-    int i;
-    UILabel *lbl;
-    for (i = 0; i < titlesArr.count; i++) {
-        lbl = (UILabel *)[self viewWithTag:i+50];
-        [lbl setTextColor:color];
-    }
-}
-
--(void) setTitlesFont:(UIFont *)font{
-    int i;
-    UILabel *lbl;
-    for (i = 0; i < titlesArr.count; i++) {
-        lbl = (UILabel *)[self viewWithTag:i+50];
-        [lbl setFont:font];
-    }
-}
-
--(void) animateTitlesToIndex:(int) index{
-    int i;
-    UILabel *lbl;
-    for (i = 0; i < titlesArr.count; i++) {
-        lbl = (UILabel *)[self viewWithTag:i+50];
-        [UIView beginAnimations:nil context:nil];
-        [UIView setAnimationBeginsFromCurrentState:YES];
-        if (i == index) {
-            [lbl setCenter:CGPointMake(lbl.center.x, self.frame.size.height-55-TITLE_SELECTED_DISTANCE)];
-            [lbl setAlpha:1];
-        }else{
-            [lbl setCenter:CGPointMake(lbl.center.x, self.frame.size.height-55)];
-            [lbl setAlpha:TITLE_FADE_ALPHA];
-        }
-        [UIView commitAnimations];
-    }
-}
-
--(void) animateHandlerToIndex:(int) index{
-    CGPoint toPoint = [self getCenterPointForIndex:index];
-    toPoint = CGPointMake(toPoint.x-(handler.frame.size.width/2.f), handler.frame.origin.y);
-    toPoint = [self fixFinalPoint:toPoint];
+- (void)didTouchUpOutsideForKnob:(id)sender
+{
+    SEFilterKnob *knob = (SEFilterKnob *)sender;
     
-    [UIView beginAnimations:nil context:nil];
-    [handler setFrame:CGRectMake(toPoint.x, toPoint.y, handler.frame.size.width, handler.frame.size.height)];
-    [UIView commitAnimations];
-}
-
--(void) setSelectedIndex:(int)index{
-    SelectedIndex = index;
-    [self animateTitlesToIndex:index];
-    [self animateHandlerToIndex:index];
-    [self sendActionsForControlEvents:UIControlEventValueChanged];
-}
-
--(int)getSelectedTitleInPoint:(CGPoint)pnt{
-    return round((pnt.x-LEFT_OFFSET)/oneSlotSize);
-}
-
--(void) ItemSelected: (UITapGestureRecognizer *) tap {
-    SelectedIndex = [self getSelectedTitleInPoint:[tap locationInView:self]];
-    [self setSelectedIndex:SelectedIndex];
+    NSUInteger selectedIndex = [self getSelectedTitleInPoint:knob.center];
+    [self setSelectedIndex:selectedIndex animated:YES];
     
     [self sendActionsForControlEvents:UIControlEventTouchUpInside];
     [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
 
--(void) TouchUp: (UIButton*) btn{
+- (void)didTouchDragForKnob:(id)sender withEvent:(UIEvent *)event
+{
+    SEFilterKnob *knob = (SEFilterKnob *)sender;
     
-    SelectedIndex = [self getSelectedTitleInPoint:btn.center];
-    [self animateHandlerToIndex:SelectedIndex];
-    [self sendActionsForControlEvents:UIControlEventTouchUpInside];
-    [self sendActionsForControlEvents:UIControlEventValueChanged];
-}
-
-- (void) TouchMove: (UIButton *) btn withEvent: (UIEvent *) ev {
-    CGPoint currPoint = [[[ev allTouches] anyObject] locationInView:self];
-    
-    CGPoint toPoint = CGPointMake(currPoint.x-diffPoint.x, handler.frame.origin.y);
-    
+    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self];
+    CGPoint toPoint = CGPointMake(currentPoint.x - diffPoint.x, self.knob.frame.origin.y);
     toPoint = [self fixFinalPoint:toPoint];
     
-    [handler setFrame:CGRectMake(toPoint.x, toPoint.y, handler.frame.size.width, handler.frame.size.height)];
+    [self.knob setFrame:CGRectMake(toPoint.x, toPoint.y, self.knob.frame.size.width, self.knob.frame.size.height)];
     
-    int selected = [self getSelectedTitleInPoint:btn.center];
-    
-    [self animateTitlesToIndex:selected];
+    NSUInteger index = [self getSelectedTitleInPoint:knob.center];
+    [self animateKnobToIndex:index];
     
     [self sendActionsForControlEvents:UIControlEventTouchDragInside];
 }
 
--(void)dealloc{
-    [handler removeTarget:self action:@selector(TouchDown:withEvent:) forControlEvents:UIControlEventTouchDown];
-    [handler removeTarget:self action:@selector(TouchUp:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
-    [handler removeTarget:self action:@selector(TouchMove:withEvent: ) forControlEvents: UIControlEventTouchDragOutside | UIControlEventTouchDragInside];
-    [handler release];
-    [titlesArr release];
-    [progressColor release];
-    [super dealloc];
+#pragma mark - Calculations
+
+- (CGFloat)xForIndex:(NSUInteger)index withSideMargin:(CGFloat)sideMargin
+{
+    return (index / (float)(self.titles.count - 1)) * (self.controlView.frame.size.width - (2 * sideMargin)) + sideMargin;
+}
+
+- (CGPoint)fixFinalPoint:(CGPoint)point
+{
+    if (point.x < (self.knob.frame.size.width / 2.f))
+    {
+        point.x = (self.knob.frame.size.width / 2.f);
+    } else if (point.x + (self.knob.frame.size.width / 2.f) > self.frame.size.width)
+    {
+        point.x = self.frame.size.width - (self.knob.frame.size.width / 2.f);
+    }
+    
+    return point;
+}
+
+#pragma mark - Others
+
+- (NSUInteger)getSelectedTitleInPoint:(CGPoint)point
+{
+    return floor(point.x / (((self.controlView.frame.size.width - (2 * kSEFilterControlTrackLeft)) + kSEFilterControlTrackLeft) / (self.titles.count - 1)));
 }
 
 @end
