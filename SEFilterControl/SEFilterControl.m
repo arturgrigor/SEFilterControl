@@ -175,8 +175,8 @@
     if (! _controlView)
     {
         _controlView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.frame.size.width - kSEFilterControlControlRightMargin - kSEFilterControlValueLabelWidth, self.frame.size.height)];
-        _controlView.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleWidth;
         _controlView.autoresizesSubviews = YES;
+        _controlView.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleWidth;
         _controlView.image = self.backgroundImage;
         _controlView.userInteractionEnabled = YES;
         
@@ -249,13 +249,14 @@
     
     for (NSUInteger i = 0; i < _titles.count; i++)
     {
-        CGFloat x = [self xForIndex:i withSideMargin:kSEFilterControlTrackLeft];
+        CGFloat w = ceil((self.controlView.frame.size.width - (2 * kSEFilterControlTrackLeft)) / (_titles.count - 1));
+        CGFloat x = (i * w) + kSEFilterControlTrackLeft;
         
         // Draw Selection Circles
         
         UIImageView *ellipseImageView = [[UIImageView alloc] initWithFrame:CGRectMake(x - (kSEFilterControlEllipseSize / 2), kSEFilterControlEllipseTop, kSEFilterControlEllipseSize, kSEFilterControlEllipseSize)];
         ellipseImageView.image = self.ellipseTrackBackgroundImage;
-        ellipseImageView.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+        ellipseImageView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
         ellipseImageView.tag = i + kSEFilterControlEllipseImageViewStartingTag;
         
         [self.controlView addSubview:ellipseImageView];
@@ -330,7 +331,7 @@
 {
     SEFilterKnob *knob = (SEFilterKnob *)sender;
     
-    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self];
+    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self.controlView];
     diffPoint = CGPointMake(currentPoint.x - knob.frame.origin.x, currentPoint.y - knob.frame.origin.y);
     
     [self sendActionsForControlEvents:UIControlEventTouchDown];
@@ -351,7 +352,7 @@
 {
     SEFilterKnob *knob = (SEFilterKnob *)sender;
     
-    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self];
+    CGPoint currentPoint = [[[event allTouches] anyObject] locationInView:self.controlView];
     CGPoint toPoint = CGPointMake(currentPoint.x - diffPoint.x, self.knob.frame.origin.y);
     toPoint = [self fixFinalPoint:toPoint];
     
@@ -372,10 +373,11 @@
 
 - (CGPoint)fixFinalPoint:(CGPoint)point
 {
-    if (point.x < (self.knob.frame.size.width / 2.f))
+    if (point.x < kSEFilterControlKnobLeft)
     {
-        point.x = (self.knob.frame.size.width / 2.f);
-    } else if (point.x + (self.knob.frame.size.width / 2.f) > (self.controlView.frame.size.width - kSEFilterControlTrackLeft))
+        point.x = kSEFilterControlKnobLeft;
+    }
+    if (point.x + (self.knob.frame.size.width / 2.f) > (self.controlView.frame.size.width - kSEFilterControlTrackLeft))
     {
         point.x = self.controlView.frame.size.width - (self.knob.frame.size.width / 2.f) - kSEFilterControlTrackLeft;
     }
