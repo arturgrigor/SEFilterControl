@@ -84,6 +84,7 @@
 //
 
 - (NSUInteger)getSelectedTitleInPoint:(CGPoint)point;
+- (void)updateValueTextForIndex:(NSUInteger)index;
 
 @end
 
@@ -153,7 +154,7 @@
 {
     _selectedIndex = selectedIndex;
     
-    self.valueLabel.text = self.titles[_selectedIndex];
+    [self updateValueTextForIndex:selectedIndex];
     
     [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
@@ -209,11 +210,12 @@
     {
         _valueLabel = [[UILabel alloc] initWithFrame:CGRectMake(self.frame.size.width - kSEFilterControlValueLabelWidth, (self.frame.size.height - kSEFilterControlValueLabelHeight) / 2, kSEFilterControlValueLabelWidth, kSEFilterControlValueLabelHeight)];
         _valueLabel.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleWidth;
-        _valueLabel.text = self.titles[self.selectedIndex];
         _valueLabel.minimumFontSize = 8.f;
         _valueLabel.adjustsFontSizeToFitWidth = YES;
         _valueLabel.backgroundColor = [UIColor clearColor];
         _valueLabel.textAlignment = UITextAlignmentCenter;
+        
+        [self updateValueTextForIndex:self.selectedIndex];
     }
     
     return _valueLabel;
@@ -359,7 +361,7 @@
     [self.knob setFrame:CGRectMake(toPoint.x, toPoint.y, self.knob.frame.size.width, self.knob.frame.size.height)];
     
     NSUInteger index = [self getSelectedTitleInPoint:knob.center];
-    [self animateKnobToIndex:index];
+    [self updateValueTextForIndex:index];
     
     [self sendActionsForControlEvents:UIControlEventTouchDragInside];
 }
@@ -390,6 +392,11 @@
 - (NSUInteger)getSelectedTitleInPoint:(CGPoint)point
 {
     return floor(point.x / (((self.controlView.frame.size.width - (2 * kSEFilterControlTrackLeft)) + kSEFilterControlTrackLeft) / (self.titles.count - 1)));
+}
+
+- (void)updateValueTextForIndex:(NSUInteger)index
+{
+    self.valueLabel.text = self.titles[index];
 }
 
 @end
